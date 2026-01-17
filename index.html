@@ -46,6 +46,27 @@
         const OBSTACLE_COUNT = 5;
 
         function init() {
+            // 1. Create Star Geometry
+const starGeo = new THREE.BufferGeometry();
+const starCount = 2000;
+const positions = new Float32Array(starCount * 3);
+
+for (let i = 0; i < starCount * 3; i++) {
+    // Randomly scatter stars in a giant sphere around the player
+    positions[i] = (Math.random() - 0.5) * 100; 
+}
+
+starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+// 2. Create Star Material (The "Twinkle" part)
+const starMat = new THREE.PointsMaterial({
+    color: 0xFFFFFF,
+    size: 0.1,
+    transparent: true
+});
+
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
             scene = new THREE.Scene();
             scene.fog = new THREE.Fog(0x000000, 5, 50);
 
@@ -92,6 +113,8 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            // Inside the animate() function:
+starMat.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.5;
 
             // 1. Color Logic
             hue += 0.002;
