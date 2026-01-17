@@ -1,28 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Neon Jump Runner</title>
+    <title>Neon Jump: Star Edition</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; touch-action: none; }
-        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.8); z-index: 10; }
+        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); z-index: 10; text-align: center; color: #0f0; }
         #game-hud { position: absolute; top: 20px; width: 100%; display: none; justify-content: space-between; padding: 0 20px; box-sizing: border-box; z-index: 5; pointer-events: none; }
-        #resetBtn { pointer-events: auto; padding: 10px; background: rgba(255,255,255,0.2); border: 1px solid #fff; color: #fff; border-radius: 5px; }
+        #resetBtn { pointer-events: auto; padding: 10px; background: rgba(0,255,0,0.2); border: 1px solid #0f0; color: #0f0; border-radius: 5px; font-family: inherit; }
         .stat { color: #0f0; font-size: 1.2rem; text-shadow: 0 0 5px #0f0; }
-        button#startBtn { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border: 2px solid #0f0; background: transparent; color: #0f0; }
+        button#startBtn { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border: 2px solid #0f0; background: #000; color: #0f0; box-shadow: 0 0 15px #0f0; }
     </style>
 </head>
 <body>
 
     <div id="ui-overlay">
         <h1>NEON JUMP</h1>
-        <p>TILT TO STEER | TAP TO JUMP</p>
-        <button id="startBtn">START</button>
+        <p>USE HTTPS TO ENABLE SENSORS<br>TILT TO LOOK | TAP TO JUMP</p>
+        <button id="startBtn">SYNC SENSORS</button>
     </div>
 
     <div id="game-hud">
         <div class="stat">SCORE: <span id="score">0</span></div>
-        <button id="resetBtn">CALIBRATE TILT</button>
+        <button id="resetBtn">CALIBRATE</button>
     </div>
 
     <script type="importmap">
@@ -32,154 +32,126 @@
     <script type="module">
         import * as THREE from 'three';
 
-        let scene, camera, renderer, road, material;
+        let scene, camera, renderer, road, material, starMat;
         let currentTiltX = 0, currentTiltY = 0, offsetX = 0, offsetY = 0;
         let hue = 0, score = 0;
-        
-        // Jump Variables
-        let isJumping = false;
-        let jumpVelocity = 0;
+        let isJumping = false, jumpVelocity = 0;
         const gravity = -0.015;
-        
-        // Obstacles
         let obstacles = [];
-        const OBSTACLE_COUNT = 5;
 
         function init() {
-            // 1. Create Star Geometry
-const starGeo = new THREE.BufferGeometry();
-const starCount = 2000;
-const positions = new Float32Array(starCount * 3);
-
-for (let i = 0; i < starCount * 3; i++) {
-    // Randomly scatter stars in a giant sphere around the player
-    positions[i] = (Math.random() - 0.5) * 100; 
-}
-
-starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-// 2. Create Star Material (The "Twinkle" part)
-const starMat = new THREE.PointsMaterial({
-    color: 0xFFFFFF,
-    size: 0.1,
-    transparent: true
-});
-
-const stars = new THREE.Points(starGeo, starMat);
-scene.add(stars);
             scene = new THREE.Scene();
-            scene.fog = new THREE.Fog(0x000000, 5, 50);
+            scene.fog = new THREE.Fog(0x000000, 10, 60);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
-            // The Road
-            const roadGeo = new THREE.PlaneGeometry(20, 1000, 20, 100);
-            material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-            road = new THREE.Mesh(roadGeo, material);
+            // 1. STARFIELD
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = [];
+            for(let i=0; i<3000; i++) {
+                starPos.push((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*100);
+            }
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+            starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true });
+            scene.add(new THREE.Points(starGeo, starMat));
+
+            // 2. THE ROAD
+            road = new THREE.Mesh(
+                new THREE.PlaneGeometry(30, 1000, 30, 100),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true })
+            );
             road.rotation.x = -Math.PI / 2;
             scene.add(road);
 
-            // Create Obstacles
-            for(let i=0; i < OBSTACLE_COUNT; i++) {
-                createObstacle(i);
-            }
+            // 3. OBSTACLES
+            for(let i=0; i < 6; i++) spawnObstacle(i);
 
             camera.position.y = 2;
-            
-            // Jump Trigger
-            window.addEventListener('touchstart', () => {
-                if(!isJumping) {
-                    isJumping = true;
-                    jumpVelocity = 0.35;
-                }
-            });
-
             animate();
         }
 
-        function createObstacle(index) {
-            const geometry = new THREE.BoxGeometry(4, 2, 1);
-            const obsMat = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
-            const obs = new THREE.Mesh(geometry, obsMat);
-            obs.position.z = -((index + 1) * 30); // Space them out
-            obs.position.x = (Math.random() - 0.5) * 15;
-            obs.position.y = 1;
+        function spawnObstacle(i) {
+            const obs = new THREE.Mesh(
+                new THREE.BoxGeometry(5, 2, 1),
+                new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true })
+            );
+            obs.position.set((Math.random()-0.5)*20, 1, -((i+1)*40));
             scene.add(obs);
             obstacles.push(obs);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            // Inside the animate() function:
-starMat.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.5;
 
-            // 1. Color Logic
+            // Effects
             hue += 0.002;
-            material.color.setHSL(hue % 1, 1, 0.5);
+            road.material.color.setHSL(hue % 1, 1, 0.5);
+            starMat.opacity = 0.5 + Math.sin(Date.now() * 0.003) * 0.5;
 
-            // 2. Jump Physics
+            // Jump
             if (isJumping) {
                 camera.position.y += jumpVelocity;
                 jumpVelocity += gravity;
-                if (camera.position.y <= 2) {
-                    camera.position.y = 2;
-                    isJumping = false;
-                }
+                if (camera.position.y <= 2) { camera.position.y = 2; isJumping = false; }
             }
 
-            // 3. Movement & Collision
-            road.position.z += 0.5;
+            // Move World
+            road.position.z += 0.6;
             if (road.position.z > 100) road.position.z = 0;
 
             obstacles.forEach(obs => {
-                obs.position.z += 0.5; // Move obstacle toward player
-                
-                // Collision Detection
-                const distZ = Math.abs(obs.position.z - 0); // Player is at Z=0
-                const distX = Math.abs(obs.position.x - camera.rotation.y * -20); // Relative X
-
-                if (distZ < 1 && camera.position.y < 3) {
-                    // HIT! Flash Red and Reset Score
-                    scene.background = new THREE.Color(0xff0000);
+                obs.position.z += 0.6;
+                // Basic Collision
+                const playerX = camera.rotation.y * -25; 
+                if (Math.abs(obs.position.z) < 1.5 && Math.abs(obs.position.x - playerX) < 3 && camera.position.y < 3) {
                     score = 0;
-                    setTimeout(() => scene.background = new THREE.Color(0x000000), 100);
+                    document.getElementById('score').innerText = score;
                 }
-
-                // Recycle obstacles
                 if (obs.position.z > 10) {
-                    obs.position.z = -150;
-                    obs.position.x = (Math.random() - 0.5) * 15;
+                    obs.position.z = -200;
+                    obs.position.x = (Math.random()-0.5)*20;
                     score++;
                     document.getElementById('score').innerText = score;
                 }
             });
 
-            // 4. Tilt Control
-            const targetRotY = -(currentTiltX - offsetX) * 0.02;
+            // Tilt & Reset Logic
+            const targetRotY = -(currentTiltX - offsetX) * 0.03;
+            const targetRotX = (currentTiltY - offsetY) * 0.015;
             camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetRotY, 0.1);
+            camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetRotX, 0.1);
 
             renderer.render(scene, camera);
         }
 
-        // --- Standard Setup Logic ---
+        // Start & Permissions
         document.getElementById('startBtn').addEventListener('click', async () => {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission === 'granted') startSensors();
-            } else { startSensors(); }
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const response = await DeviceOrientationEvent.requestPermission();
+                    if (response === 'granted') startSensors();
+                } catch (e) { alert("Permission denied"); }
+            } else {
+                startSensors(); // Android / Desktop
+            }
         });
 
         function startSensors() {
             document.getElementById('ui-overlay').style.display = 'none';
             document.getElementById('game-hud').style.display = 'flex';
-            window.addEventListener('deviceorientation', (e) => { currentTiltX = e.gamma; });
+            window.addEventListener('deviceorientation', (e) => {
+                currentTiltX = e.gamma || 0;
+                currentTiltY = e.beta || 0;
+            });
             init();
         }
 
-        document.getElementById('resetBtn').addEventListener('click', () => { offsetX = currentTiltX; });
+        window.addEventListener('touchstart', () => { if(!isJumping) { isJumping = true; jumpVelocity = 0.35; } });
+        document.getElementById('resetBtn').addEventListener('click', () => { offsetX = currentTiltX; offsetY = currentTiltY; });
     </script>
 </body>
 </html>
