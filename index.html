@@ -1,36 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Trippy Tilt Runner</title>
+    <title>Neon Jump Runner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
-        
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; touch-action: none; }
         #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.8); z-index: 10; }
-        
-        #reset-container { position: absolute; top: 20px; width: 100%; display: none; justify-content: center; z-index: 5; }
-        
-        button { 
-            padding: 12px 24px; font-size: 1rem; cursor: pointer; border-radius: 50px; border: 2px solid #fff; 
-            background: transparent; color: white; text-transform: uppercase; letter-spacing: 2px;
-            transition: all 0.2s;
-        }
-        button:active { transform: scale(0.9); background: white; color: black; }
-        
-        h1 { color: #0f0; text-shadow: 0 0 10px #0f0; margin-bottom: 5px; }
-        p { color: #fff; margin-bottom: 20px; font-size: 0.8rem; }
+        #game-hud { position: absolute; top: 20px; width: 100%; display: none; justify-content: space-between; padding: 0 20px; box-sizing: border-box; z-index: 5; pointer-events: none; }
+        #resetBtn { pointer-events: auto; padding: 10px; background: rgba(255,255,255,0.2); border: 1px solid #fff; color: #fff; border-radius: 5px; }
+        .stat { color: #0f0; font-size: 1.2rem; text-shadow: 0 0 5px #0f0; }
+        button#startBtn { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border: 2px solid #0f0; background: transparent; color: #0f0; }
     </style>
 </head>
 <body>
 
     <div id="ui-overlay">
-        <h1>NEON DRIFT</h1>
-        <p>TILT TO LOOK | HTTPS REQUIRED</p>
-        <button id="startBtn">ENTER VOID</button>
+        <h1>NEON JUMP</h1>
+        <p>TILT TO STEER | TAP TO JUMP</p>
+        <button id="startBtn">START</button>
     </div>
 
-    <div id="reset-container">
-        <button id="resetBtn">RESET PERSPECTIVE</button>
+    <div id="game-hud">
+        <div class="stat">SCORE: <span id="score">0</span></div>
+        <button id="resetBtn">CALIBRATE TILT</button>
     </div>
 
     <script type="importmap">
@@ -41,94 +33,130 @@
         import * as THREE from 'three';
 
         let scene, camera, renderer, road, material;
-        let currentTiltX = 0, currentTiltY = 0;
-        let offsetX = 0, offsetY = 0;
-        let hue = 0;
+        let currentTiltX = 0, currentTiltY = 0, offsetX = 0, offsetY = 0;
+        let hue = 0, score = 0;
+        
+        // Jump Variables
+        let isJumping = false;
+        let jumpVelocity = 0;
+        const gravity = -0.015;
+        
+        // Obstacles
+        let obstacles = [];
+        const OBSTACLE_COUNT = 5;
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
-            scene.fog = new THREE.Fog(0x000000, 5, 45);
+            scene.fog = new THREE.Fog(0x000000, 5, 50);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Create the Road with a Line material for that retro look
-            const geometry = new THREE.PlaneGeometry(30, 1000, 20, 100);
-            material = new THREE.MeshBasicMaterial({ 
-                color: 0x00ff00, 
-                wireframe: true,
-                transparent: true,
-                opacity: 0.8
-            });
-            
-            road = new THREE.Mesh(geometry, material);
+            // The Road
+            const roadGeo = new THREE.PlaneGeometry(20, 1000, 20, 100);
+            material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+            road = new THREE.Mesh(roadGeo, material);
             road.rotation.x = -Math.PI / 2;
             scene.add(road);
 
+            // Create Obstacles
+            for(let i=0; i < OBSTACLE_COUNT; i++) {
+                createObstacle(i);
+            }
+
             camera.position.y = 2;
+            
+            // Jump Trigger
+            window.addEventListener('touchstart', () => {
+                if(!isJumping) {
+                    isJumping = true;
+                    jumpVelocity = 0.35;
+                }
+            });
+
             animate();
+        }
+
+        function createObstacle(index) {
+            const geometry = new THREE.BoxGeometry(4, 2, 1);
+            const obsMat = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
+            const obs = new THREE.Mesh(geometry, obsMat);
+            obs.position.z = -((index + 1) * 30); // Space them out
+            obs.position.x = (Math.random() - 0.5) * 15;
+            obs.position.y = 1;
+            scene.add(obs);
+            obstacles.push(obs);
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // 1. Trippy Color Logic (HSL)
-            hue += 0.005; 
-            if (hue > 1) hue = 0;
-            // Set color using Hue, Saturation (100%), Lightness (50%)
-            material.color.setHSL(hue, 1, 0.5);
+            // 1. Color Logic
+            hue += 0.002;
+            material.color.setHSL(hue % 1, 1, 0.5);
 
-            // 2. Movement
-            road.position.z += 0.4;
-            if (road.position.z > 50) road.position.z = 0;
+            // 2. Jump Physics
+            if (isJumping) {
+                camera.position.y += jumpVelocity;
+                jumpVelocity += gravity;
+                if (camera.position.y <= 2) {
+                    camera.position.y = 2;
+                    isJumping = false;
+                }
+            }
 
-            // 3. Camera Rotation with Reset Offset applied
+            // 3. Movement & Collision
+            road.position.z += 0.5;
+            if (road.position.z > 100) road.position.z = 0;
+
+            obstacles.forEach(obs => {
+                obs.position.z += 0.5; // Move obstacle toward player
+                
+                // Collision Detection
+                const distZ = Math.abs(obs.position.z - 0); // Player is at Z=0
+                const distX = Math.abs(obs.position.x - camera.rotation.y * -20); // Relative X
+
+                if (distZ < 1 && camera.position.y < 3) {
+                    // HIT! Flash Red and Reset Score
+                    scene.background = new THREE.Color(0xff0000);
+                    score = 0;
+                    setTimeout(() => scene.background = new THREE.Color(0x000000), 100);
+                }
+
+                // Recycle obstacles
+                if (obs.position.z > 10) {
+                    obs.position.z = -150;
+                    obs.position.x = (Math.random() - 0.5) * 15;
+                    score++;
+                    document.getElementById('score').innerText = score;
+                }
+            });
+
+            // 4. Tilt Control
             const targetRotY = -(currentTiltX - offsetX) * 0.02;
-            const targetRotX = (currentTiltY - offsetY) * 0.01;
-
             camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetRotY, 0.1);
-            camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetRotX, 0.1);
 
             renderer.render(scene, camera);
         }
 
-        // Permission & Start Logic
+        // --- Standard Setup Logic ---
         document.getElementById('startBtn').addEventListener('click', async () => {
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const permission = await DeviceOrientationEvent.requestPermission();
                 if (permission === 'granted') startSensors();
-            } else {
-                startSensors();
-            }
+            } else { startSensors(); }
         });
 
         function startSensors() {
             document.getElementById('ui-overlay').style.display = 'none';
-            document.getElementById('reset-container').style.display = 'flex';
-            
-            window.addEventListener('deviceorientation', (event) => {
-                currentTiltX = event.gamma;
-                currentTiltY = event.beta;
-            });
+            document.getElementById('game-hud').style.display = 'flex';
+            window.addEventListener('deviceorientation', (e) => { currentTiltX = e.gamma; });
             init();
         }
 
-        // Reset Perspective Logic
-        document.getElementById('resetBtn').addEventListener('click', () => {
-            // Save the current tilt as the new "zero"
-            offsetX = currentTiltX;
-            offsetY = currentTiltY;
-        });
-
-        // Handle window resizing
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        document.getElementById('resetBtn').addEventListener('click', () => { offsetX = currentTiltX; });
     </script>
 </body>
 </html>
