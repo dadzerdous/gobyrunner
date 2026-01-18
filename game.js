@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-
+const SMOOTHING = 0.08;
         let scene, camera, renderer, road, material, starMat;
         let currentTiltX = 0, offsetX = 0, keyboardX = 0;
         let hue = 0, score = 0;
@@ -74,6 +74,8 @@ import * as THREE from 'three';
             material.color.setHSL(hue % 1, 1, 0.5);
             starMat.opacity = 0.4 + Math.sin(Date.now() * 0.005) * 0.3;
 
+                const rawInput = (currentTiltX - offsetX) + keyboardX;
+
             // Physics
             if (isJumping) {
                 camera.position.y += jumpVelocity;
@@ -86,7 +88,8 @@ import * as THREE from 'three';
 
             // Combined Input (Tilt + Keyboard)
             const inputX = currentTiltX - offsetX + keyboardX;
-            const targetRotY = -inputX * 0.02;
+                const clampedInput = Math.max(-30, Math.min(30, rawInput));
+            const targetRotY = -clampedInput * 0.02;
             camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetRotY, 0.1);
 
             // Obstacles & Collision
@@ -104,7 +107,7 @@ import * as THREE from 'three';
                     document.getElementById('score').innerText = score;
                 }
             });
-
+                camera.rotation.y += (targetRotY - camera.rotation.y) * SMOOTHING;
             renderer.render(scene, camera);
         }
 
