@@ -1,27 +1,32 @@
 import * as THREE from 'three';
 
-let scene, camera, renderer, road, roadMaterial, starMat;
-let score = 0;
+let scene, camera, renderer, road, roadMaterial;
 let gameActive = true;
 
-// Lane Logic
-const LANES = [-5, 0, 5];
-let currentLane = 1; // 0: Left, 1: Center, 2: Right
+// Progression & Stats
+let score = 0; // Distance
+let currency = 0; // Coins collected
+let jumpXP = 0;
+let jumpLevel = 1;
+const MAX_JUMP_LEVEL = 10;
 
-// Movement & Physics
+// Lanes & Movement
+const LANES = [-5, 0, 5];
+let currentLane = 1;
 let isJumping = false;
 let jumpVelocity = 0;
-const gravity = -0.012;
+let baseGravity = -0.012; // Lower gravity = longer air time
 let isSliding = false;
 
 // Entities
 let obstacles = [];
 let coins = [];
+let stars = []; // Array to hold individual star groups for twinkling
 let hue = 0;
 
 function init() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x000000, 10, 70);
+    scene.fog = new THREE.Fog(0x000000, 10, 80);
 
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(LANES[currentLane], 2, 5);
@@ -37,63 +42,69 @@ function init() {
     road.rotation.x = -Math.PI / 2;
     scene.add(road);
 
-    // 2. The Stars
-    const starGeo = new THREE.BufferGeometry();
-    const starCoords = [];
-    for (let i = 0; i < 2000; i++) {
-        starCoords.push((Math.random() - 0.5) * 150, (Math.random() - 0.5) * 150, (Math.random() - 0.5) * 150);
-    }
-    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-    starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true });
-    scene.add(new THREE.Points(starGeo, starMat));
+    // 2. Varied Twinkling Stars
+    createStarfield();
 
-    // 3. Initial Spawns
-    for (let i = 0; i < 8; i++) {
-        spawnObstacleOrCoin(-50 - (i * 30));
+    // 3. Initial Spawns (Start obstacles further out)
+    for (let i = 0; i < 10; i++) {
+        spawnObstacleAndCoin(-60 - (i * 40));
     }
 
     setupInput();
     animate();
 }
 
-function spawnObstacleOrCoin(zPos) {
-    const lane = Math.floor(Math.random() * 3);
-    const type = Math.random();
+function createStarfield() {
+    // Create 3 separate star groups with different "twinkle" offsets
+    for (let g = 0; g < 3; g++) {
+        const starGeo = new THREE.BufferGeometry();
+        const coords = [];
+        for (let i = 0; i < 600; i++) {
+            coords.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(coords, 3));
+        const sMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true });
+        const sPoints = new THREE.Points(starGeo, sMat);
+        sPoints.userData = { offset: Math.random() * 10 }; // Random timing offset
+        scene.add(sPoints);
+        stars.push(sPoints);
+    }
+}
 
-    if (type < 0.4) {
-        // Jump Barricade (Low)
-        const obs = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 1), new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true }));
-        obs.position.set(LANES[lane], 0.75, zPos);
-        obs.userData = { type: 'jump' };
-        scene.add(obs);
-        obstacles.push(obs);
-        
-        // Add a coin above the jump
-        createCoin(LANES[lane], 4, zPos);
-    } else if (type < 0.7) {
-        // Slide Gate (High)
-        const obs = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 1), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }));
-        obs.position.set(LANES[lane], 3.5, zPos);
-        obs.userData = { type: 'slide' };
-        scene.add(obs);
-        obstacles.push(obs);
+function spawnObstacleAndCoin(zPos) {
+    const lane = Math.floor(Math.random() * 3);
+    const isHigh = Math.random() > 0.5;
+
+    if (isHigh) {
+        // High Gate: Slide Under
+        const gate = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 1), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }));
+        gate.position.set(LANES[lane], 3.8, zPos);
+        gate.userData = { type: 'slide' };
+        scene.add(gate);
+        obstacles.push(gate);
+        // Coin is UNDER the gate
+        createCoin(LANES[lane], 1.2, zPos);
     } else {
-        // Just Coins
-        createCoin(LANES[lane], 1.5, zPos);
+        // Low Barricade: Jump Over
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 1), new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true }));
+        wall.position.set(LANES[lane], 0.75, zPos);
+        wall.userData = { type: 'jump' };
+        scene.add(wall);
+        obstacles.push(wall);
+        // Coin is OVER the wall
+        createCoin(LANES[lane], 4.5, zPos);
     }
 }
 
 function createCoin(x, y, z) {
-    const coinGeo = new THREE.OctahedronGeometry(0.5);
-    const coinMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-    const coin = new THREE.Mesh(coinGeo, coinMat);
+    const coin = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
     coin.position.set(x, y, z);
     scene.add(coin);
     coins.push(coin);
 }
 
 function setupInput() {
-    // Keyboard
+    // Simple Keyboard Logic
     window.addEventListener('keydown', (e) => {
         if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && currentLane > 0) currentLane--;
         if ((e.code === 'ArrowRight' || e.code === 'KeyD') && currentLane < 2) currentLane++;
@@ -101,28 +112,31 @@ function setupInput() {
         if ((e.code === 'ArrowDown' || e.code === 'KeyS') && !isSliding) triggerSlide();
     });
 
-    // Touch Swipes
-    let startX, startY;
-    window.addEventListener('touchstart', e => {
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-    });
-
+    // Touch Swipe Logic
+    let sX, sY;
+    window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; });
     window.addEventListener('touchend', e => {
-        const diffX = e.changedTouches[0].clientX - startX;
-        const diffY = e.changedTouches[0].clientY - startY;
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-            if (diffX > 40 && currentLane < 2) currentLane++;
-            if (diffX < -40 && currentLane > 0) currentLane--;
+        const dX = e.changedTouches[0].clientX - sX;
+        const dY = e.changedTouches[0].clientY - sY;
+        if (Math.abs(dX) > Math.abs(dY)) {
+            if (dX > 40 && currentLane < 2) currentLane++;
+            if (dX < -40 && currentLane > 0) currentLane--;
         } else {
-            if (diffY < -40 && !isJumping) triggerJump();
-            if (diffY > 40 && !isSliding) triggerSlide();
+            if (dY < -40 && !isJumping) triggerJump();
+            if (dY > 40 && !isSliding) triggerSlide();
         }
     });
 }
 
 function triggerJump() {
     isJumping = true;
+    // Skill usage improvement:
+    jumpXP++;
+    if (jumpXP >= jumpLevel * 5 && jumpLevel < MAX_JUMP_LEVEL) {
+        jumpLevel++;
+        jumpXP = 0;
+        console.log("Jump Upgraded to Level " + jumpLevel);
+    }
     jumpVelocity = 0.3;
 }
 
@@ -135,66 +149,64 @@ function animate() {
     if (!gameActive) return;
     requestAnimationFrame(animate);
 
-    // 1. Forward Speed
-    const speed = 0.6;
-    road.position.z += speed;
-    if (road.position.z > 100) road.position.z = 0;
+    const speed = 0.7; // Constant game speed
+    score += 0.1; // Distance score
+    document.getElementById('score').innerText = Math.floor(score);
 
-    // 2. Camera Positioning (Smooth Lanes & Jump)
+    // 1. Gravity Logic (Air time increases with jumpLevel)
     if (isJumping) {
         camera.position.y += jumpVelocity;
-        jumpVelocity += gravity;
+        // Gravity gets weaker as level goes up (Divide base gravity by level factor)
+        const gravityEffect = baseGravity / (1 + (jumpLevel * 0.1));
+        jumpVelocity += gravityEffect;
+        
         if (camera.position.y <= 2) {
             camera.position.y = 2;
             isJumping = false;
         }
     }
 
-    const targetX = LANES[currentLane];
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.15);
-    
-    // Slide Height
+    // 2. Smooth Positioning
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, LANES[currentLane], 0.15);
     const targetY = isSliding ? 1.0 : (isJumping ? camera.position.y : 2);
     camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.2);
 
-    // 3. Visuals
-    hue += 0.002;
-    roadMaterial.color.setHSL(hue % 1, 0.8, 0.5);
-    starMat.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+    // 3. Entity Movement & Recycling
+    road.position.z += speed;
+    if (road.position.z > 100) road.position.z = 0;
 
-    // 4. Obstacles Logic
+    // Twinkling Stars Logic (Randomized)
+    stars.forEach(s => {
+        s.material.opacity = 0.3 + Math.sin((Date.now() * 0.003) + s.userData.offset) * 0.4;
+    });
+
+    // Obstacles
     obstacles.forEach((obs, i) => {
         obs.position.z += speed;
-        
         // Collision
-        const laneDist = Math.abs(obs.position.x - camera.position.x);
-        const zDist = Math.abs(obs.position.z - camera.position.z);
-        
-        if (laneDist < 2 && zDist < 1) {
-            if (obs.userData.type === 'jump' && camera.position.y < 3) gameOver();
+        if (Math.abs(obs.position.z) < 1.2 && Math.abs(obs.position.x - camera.position.x) < 2) {
+            if (obs.userData.type === 'jump' && camera.position.y < 3.2) gameOver();
             if (obs.userData.type === 'slide' && !isSliding) gameOver();
         }
-
-        if (obs.position.z > 10) {
+        // Recycle
+        if (obs.position.z > 15) {
             scene.remove(obs);
             obstacles.splice(i, 1);
-            spawnObstacleOrCoin(-200);
+            spawnObstacleAndCoin(-350); // Respawn far back
         }
     });
 
-    // 5. Coins Logic
+    // Coins
     coins.forEach((coin, i) => {
         coin.position.z += speed;
         coin.rotation.y += 0.05;
-
-        if (camera.position.distanceTo(coin.position) < 2) {
+        if (camera.position.distanceTo(coin.position) < 2.5) {
             scene.remove(coin);
             coins.splice(i, 1);
-            score += 10;
-            document.getElementById('score').innerText = score;
+            currency++; // This is your upgrade money
+            console.log("Currency: " + currency);
         }
-
-        if (coin.position.z > 10) {
+        if (coin.position.z > 15) {
             scene.remove(coin);
             coins.splice(i, 1);
         }
@@ -204,21 +216,14 @@ function animate() {
 }
 
 function gameOver() {
-    // Flash Red
-    scene.background = new THREE.Color(0xff0000);
-    setTimeout(() => {
-        scene.background = new THREE.Color(0x000000);
-        score = 0;
-        document.getElementById('score').innerText = score;
-    }, 200);
+    gameActive = false;
+    scene.background = new THREE.Color(0x330000);
+    alert("CRASH! Distance: " + Math.floor(score) + " | Currency Collected: " + currency);
+    location.reload();
 }
 
 document.getElementById('startBtn').addEventListener('click', () => {
     document.getElementById('ui-overlay').style.display = 'none';
     document.getElementById('game-hud').style.display = 'flex';
     init();
-});
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-    location.reload(); // Quick reset
 });
