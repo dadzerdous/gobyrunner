@@ -1,0 +1,5 @@
+body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; touch-action: none; }
+        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.8); z-index: 10; color: #0f0; }
+        #game-hud { position: absolute; top: 20px; width: 100%; display: none; justify-content: space-between; padding: 0 20px; box-sizing: border-box; z-index: 5; pointer-events: none; }
+        button { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border: 2px solid #0f0; background: transparent; color: #0f0; pointer-events: auto; }
+        .stat { color: #0f0; font-size: 1.5rem; text-shadow: 0 0 10px #0f0; }
