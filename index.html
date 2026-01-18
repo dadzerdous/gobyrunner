@@ -3,10 +3,26 @@
 <head>
     <title>Neon Jump</title>
     <link rel="stylesheet" href="style.css">
+    
+    <script type="importmap">
+        { 
+            "imports": { 
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js" 
+            } 
+        }
+    </script>
 </head>
 <body>
-    <div id="ui-overlay">...</div>
-    <div id="game-hud">...</div>
+    <div id="ui-overlay">
+        <h1>NEON JUMP</h1>
+        <p>MOBILE: TILT & TAP | PC: ARROWS & SPACE</p>
+        <button id="startBtn">START SYSTEM</button>
+    </div>
+
+    <div id="game-hud">
+        <div class="stat">SCORE: <span id="score">0</span></div>
+        <button id="resetBtn">CALIBRATE</button>
+    </div>
 
     <script type="module" src="game.js"></script>
 </body>
