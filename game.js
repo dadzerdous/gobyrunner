@@ -124,13 +124,32 @@ function setupInput() {
 
 function triggerJump() {
     isJumping = true;
+    jumpVelocity = 0.32;
+
+    // 1. Gain XP
     jumpXP++;
-    if (jumpXP >= 10 && jumpLevel < MAX_JUMP_LEVEL) {
+    
+    // 2. Calculate Progress %
+    const xpNeeded = jumpLevel * 10; 
+    let progress = (jumpXP / xpNeeded) * 100;
+
+    // 3. Level Up Check
+    if (jumpXP >= xpNeeded && jumpLevel < MAX_JUMP_LEVEL) {
         jumpLevel++;
         jumpXP = 0;
+        progress = 0;
+        
+        // Level Up Visual Effect
+        document.getElementById('xp-bar').style.background = '#fff';
+        setTimeout(() => { document.getElementById('xp-bar').style.background = '#0f0'; }, 500);
+        
+        console.log("Skill Up: Jump is now Level " + jumpLevel);
     }
-    jumpVelocity = 0.32;
-}
+
+    // 4. Update the HUD
+    document.getElementById('xp-bar').style.width = progress + "%";
+    document.getElementById('skill-label').innerText = `JUMP SKILL LVL ${jumpLevel}`;
+}}
 
 function triggerSlide() {
     isSliding = true;
