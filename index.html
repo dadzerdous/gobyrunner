@@ -22,6 +22,14 @@
     <div id="game-hud">
         <div class="stat">SCORE: <span id="score">0</span></div>
         <button id="resetBtn">CALIBRATE</button>
+        <div class="stat">DISTANCE: <span id="score">0</span></div>
+    
+    <div id="xp-container" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 300px; height: 10px; border: 1px solid #0f0; background: rgba(0,0,0,0.5);">
+        <div id="xp-bar" style="width: 0%; height: 100%; background: #0f0; transition: width 0.3s;"></div>
+        <div id="skill-label" style="color: #0f0; font-family: monospace; font-size: 10px; text-align: center; margin-top: 5px;">JUMP SKILL LVL 1</div>
+    </div>
+
+    <div class="stat">COINS: <span id="currency-display">0</span></div>
     </div>
 
     <script type="module" src="game.js"></script>
