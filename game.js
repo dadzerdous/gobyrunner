@@ -149,7 +149,7 @@ function triggerJump() {
     // 4. Update the HUD
     document.getElementById('xp-bar').style.width = progress + "%";
     document.getElementById('skill-label').innerText = `JUMP SKILL LVL ${jumpLevel}`;
-}}
+}
 
 function triggerSlide() {
     isSliding = true;
