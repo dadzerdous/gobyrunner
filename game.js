@@ -4,8 +4,8 @@ let scene, camera, renderer, road, roadMaterial;
 let gameActive = true;
 
 // --- PROGRESSION & STATS ---
-let score = 0; // Overall Distance
-let currency = 0; // Total Collectibles
+let score = 0; 
+let currency = 0; 
 let jumpXP = 0;
 let jumpLevel = 1;
 const MAX_JUMP_LEVEL = 10;
@@ -15,7 +15,7 @@ const LANES = [-5, 0, 5];
 let currentLane = 1;
 let isJumping = false;
 let jumpVelocity = 0;
-let baseGravity = -0.012; // Lower gravity = longer air time
+let baseGravity = -0.012; 
 let isSliding = false;
 
 // --- ENTITIES ---
@@ -29,7 +29,6 @@ function init() {
     scene.fog = new THREE.Fog(0x000000, 10, 80);
 
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Position camera at center lane
     camera.position.set(LANES[currentLane], 2, 5);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -43,7 +42,7 @@ function init() {
     road.rotation.x = -Math.PI / 2;
     scene.add(road);
 
-    // 2. Starfield (3 groups for randomized twinkling)
+    // 2. Starfield
     for (let g = 0; g < 3; g++) {
         const starGeo = new THREE.BufferGeometry();
         const coords = [];
@@ -58,7 +57,7 @@ function init() {
         stars.push(sPoints);
     }
 
-    // 3. Initial Spawn Loop
+    // 3. Initial Spawn
     for (let i = 0; i < 10; i++) {
         spawnObstacleAndCoin(-60 - (i * 45));
     }
@@ -72,22 +71,18 @@ function spawnObstacleAndCoin(zPos) {
     const isHighGate = Math.random() > 0.5;
 
     if (isHighGate) {
-        // High Gate: Must Slide Under
         const gate = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 1), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }));
         gate.position.set(LANES[lane], 4.0, zPos);
         gate.userData = { type: 'slide' };
         scene.add(gate);
         obstacles.push(gate);
-        // Coin is UNDER the gate
         createCoin(LANES[lane], 1.2, zPos);
     } else {
-        // Low Barricade: Must Jump Over
         const wall = new THREE.Mesh(new THREE.BoxGeometry(4, 1.8, 1), new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true }));
         wall.position.set(LANES[lane], 0.9, zPos);
         wall.userData = { type: 'jump' };
         scene.add(wall);
         obstacles.push(wall);
-        // Coin is OVER the wall
         createCoin(LANES[lane], 5.0, zPos);
     }
 }
@@ -101,6 +96,7 @@ function createCoin(x, y, z) {
 
 function setupInput() {
     window.addEventListener('keydown', (e) => {
+        if (!gameActive) return;
         if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && currentLane > 0) currentLane--;
         if ((e.code === 'ArrowRight' || e.code === 'KeyD') && currentLane < 2) currentLane++;
         if ((e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') && !isJumping) triggerJump();
@@ -110,6 +106,7 @@ function setupInput() {
     let sX, sY;
     window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; });
     window.addEventListener('touchend', e => {
+        if (!gameActive) return;
         const dX = e.changedTouches[0].clientX - sX;
         const dY = e.changedTouches[0].clientY - sY;
         if (Math.abs(dX) > Math.abs(dY)) {
@@ -125,28 +122,19 @@ function setupInput() {
 function triggerJump() {
     isJumping = true;
     jumpVelocity = 0.32;
-
-    // 1. Gain XP
     jumpXP++;
     
-    // 2. Calculate Progress %
     const xpNeeded = jumpLevel * 10; 
     let progress = (jumpXP / xpNeeded) * 100;
 
-    // 3. Level Up Check
     if (jumpXP >= xpNeeded && jumpLevel < MAX_JUMP_LEVEL) {
         jumpLevel++;
         jumpXP = 0;
         progress = 0;
-        
-        // Level Up Visual Effect
         document.getElementById('xp-bar').style.background = '#fff';
         setTimeout(() => { document.getElementById('xp-bar').style.background = '#0f0'; }, 500);
-        
-        console.log("Skill Up: Jump is now Level " + jumpLevel);
     }
 
-    // 4. Update the HUD
     document.getElementById('xp-bar').style.width = progress + "%";
     document.getElementById('skill-label').innerText = `JUMP SKILL LVL ${jumpLevel}`;
 }
@@ -164,7 +152,6 @@ function animate() {
     score += 0.15;
     document.getElementById('score').innerText = Math.floor(score);
 
-    // 1. Precise Movement & Gravity
     if (isJumping) {
         camera.position.y += jumpVelocity;
         const gravityEffect = baseGravity / (1 + (jumpLevel * 0.15));
@@ -179,7 +166,6 @@ function animate() {
     const targetY = isSliding ? 1.0 : (isJumping ? camera.position.y : 2);
     camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.2);
 
-    // 2. Road & Star Visuals
     road.position.z += speed;
     if (road.position.z > 100) road.position.z = 0;
     hue += 0.002;
@@ -188,12 +174,9 @@ function animate() {
         s.material.opacity = 0.2 + Math.sin((Date.now() * 0.003) + s.userData.offset) * 0.5;
     });
 
-    // 3. Precise Collision Detection
     obstacles.forEach((obs, i) => {
         obs.position.z += speed;
-
-        // Only check collision when object is physically overlapping player depth (Z=0 to Z=5 range)
-        const isNearZ = obs.position.z > 4.0 && obs.position.z < 6.0;
+        const isNearZ = obs.position.z > 4.5 && obs.position.z < 5.5;
         const isSameLane = Math.abs(obs.position.x - camera.position.x) < 2.0;
 
         if (isNearZ && isSameLane) {
@@ -204,18 +187,18 @@ function animate() {
         if (obs.position.z > 20) {
             scene.remove(obs);
             obstacles.splice(i, 1);
-            spawnObstacleAndCoin(-400); // Constant recycling
+            spawnObstacleAndCoin(-400);
         }
     });
 
-    // 4. Coin Collection
     coins.forEach((coin, i) => {
         coin.position.z += speed;
         coin.rotation.y += 0.06;
         if (camera.position.distanceTo(coin.position) < 2.5) {
             scene.remove(coin);
             coins.splice(i, 1);
-            currency += 5; // Fixed value for shop
+            currency += 5;
+            document.getElementById('currency-display').innerText = currency;
         }
         if (coin.position.z > 20) {
             scene.remove(coin);
@@ -229,20 +212,19 @@ function animate() {
 function gameOver() {
     gameActive = false;
     
-    // Create Shop Overlay
     const shop = document.createElement('div');
     shop.id = "shop-ui";
-    shop.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #0f0; padding:30px; color:#0f0; text-align:center; z-index:100; font-family:monospace; min-width:300px;";
+    shop.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #0f0; padding:30px; color:#0f0; text-align:center; z-index:100; font-family:monospace; min-width:300px; box-shadow: 0 0 20px #0f0;";
     shop.innerHTML = `
         <h2 style="text-shadow: 0 0 10px #0f0;">SYSTEM CRASH</h2>
         <p>DISTANCE: ${Math.floor(score)}m</p>
-        <p>CURRENCY: ${currency}</p>
+        <p>CURRENCY: <span id="shop-currency">${currency}</span></p>
         <hr style="border-color:#0f0">
-        <h3>STAY-AIR UPGRADE</h3>
-        <p>Current Level: ${jumpLevel}</p>
-        <button id="upgradeBtn" style="background:transparent; border:1px solid #0f0; color:#0f0; padding:10px; cursor:pointer;">BUY (100 Coins)</button>
+        <h3>PERMANENT UPGRADES</h3>
+        <p>Stay-Air Level: <span id="shop-lvl">${jumpLevel}</span></p>
+        <button id="upgradeBtn" style="background:transparent; border:1px solid #0f0; color:#0f0; padding:10px; cursor:pointer; width:100%;">BUY JUMP (100 Coins)</button>
         <br><br>
-        <button id="restartBtn" style="background:#0f0; color:#000; border:none; padding:10px 20px; cursor:pointer; font-weight:bold;">RESTART ENGINE</button>
+        <button id="restartBtn" style="background:#0f0; color:#000; border:none; padding:15px; cursor:pointer; width:100%; font-weight:bold; font-size:1.1rem;">RETRY MISSION</button>
     `;
     document.body.appendChild(shop);
 
@@ -250,15 +232,35 @@ function gameOver() {
         if (currency >= 100) {
             currency -= 100;
             jumpLevel++;
-            alert("UPGRADED! Gravity Reduced.");
-            // Refresh text
-            shop.innerHTML = shop.innerHTML.replace(`CURRENCY: ${currency + 100}`, `CURRENCY: ${currency}`);
-        } else {
-            alert("Insufficient Funds.");
+            document.getElementById('shop-currency').innerText = currency;
+            document.getElementById('shop-lvl').innerText = jumpLevel;
+            document.getElementById('currency-display').innerText = currency;
+            document.getElementById('skill-label').innerText = `JUMP SKILL LVL ${jumpLevel}`;
         }
     });
 
-    document.getElementById('restartBtn').addEventListener('click', () => location.reload());
+    document.getElementById('restartBtn').addEventListener('click', () => {
+        // Clear all obstacles/coins from scene for fresh start
+        obstacles.forEach(o => scene.remove(o));
+        coins.forEach(c => scene.remove(c));
+        obstacles = [];
+        coins = [];
+        
+        // Reset Run Stats
+        score = 0;
+        currentLane = 1;
+        camera.position.set(LANES[currentLane], 2, 5);
+        
+        // Remove Shop UI and Restart
+        document.body.removeChild(shop);
+        gameActive = true;
+        animate(); 
+
+        // Respawn initial blocks
+        for (let i = 0; i < 10; i++) {
+            spawnObstacleAndCoin(-60 - (i * 45));
+        }
+    });
 }
 
 document.getElementById('startBtn').addEventListener('click', () => {
